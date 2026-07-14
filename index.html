@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scale Team Sales 2026</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0f14; color: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      display: flex; min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px; min-width: 220px; background: #111318;
+      border-right: 1px solid #1f2433; display: flex; flex-direction: column;
+      padding: 28px 0 24px; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto;
+    }
+    .sidebar-logo { padding: 0 20px 24px; border-bottom: 1px solid #1f2433; }
+    .sidebar-logo h2 { font-size: 13px; font-weight: 700; color: #C9A84C; letter-spacing: .05em; line-height: 1.4; }
+    .sidebar-logo p  { font-size: 11px; color: #4b5563; margin-top: 3px; }
+    .sidebar-nav { padding: 16px 12px; flex: 1; }
+    .nav-label { font-size: 10px; color: #4b5563; letter-spacing: .1em; text-transform: uppercase; padding: 0 8px; margin-bottom: 6px; margin-top: 16px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 6px;
+      cursor: pointer; font-size: 13px; font-weight: 500; color: #6b7280;
+      transition: background .15s, color .15s; border: none; background: transparent;
+      width: 100%; text-align: left; font-family: inherit;
+    }
+    .nav-item:hover  { background: #1a1e2a; color: #d1d5db; }
+    .nav-item.active { background: #1e2235; color: #C9A84C; font-weight: 600; }
+    .nav-item .icon  { font-size: 15px; width: 18px; text-align: center; }
+    .sidebar-footer { padding: 16px 20px 0; border-top: 1px solid #1f2433; }
+    .sidebar-footer p { font-size: 11px; color: #4b5563; margin-bottom: 4px; }
+    .sidebar-footer span { color: #C9A84C; }
+
+    /* ── Main ── */
+    .main { margin-left: 220px; flex: 1; padding: 32px 28px 60px; min-width: 0; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+    .page-title { font-size: 20px; font-weight: 700; color: #fff; }
+    .page-sub { font-size: 12px; color: #4b5563; margin-top: 3px; }
+    .refresh-btn {
+      display: flex; align-items: center; gap: 8px; background: transparent;
+      border: 1px solid #C9A84C; color: #C9A84C; padding: 8px 18px;
+      font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 4px;
+      font-family: inherit; transition: background .15s; white-space: nowrap;
+    }
+    .refresh-btn:hover { background: rgba(201,168,76,.1); }
+    .refresh-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .spin.loading { display: inline-block; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Cards ── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: #161922; border: 1px solid #1f2433; padding: 20px; border-radius: 6px; }
+    .card-label { font-size: 10px; color: #6b7280; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    .card-value { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; margin-bottom: 5px; }
+    .card-sub   { font-size: 12px; color: #6b7280; }
+    .gold  { color: #C9A84C; font-weight: 600; }
+    .green { color: #4ade80; font-weight: 600; }
+    .red   { color: #f87171; font-weight: 600; }
+    .blue  { color: #60a5fa; font-weight: 600; }
+
+    /* ── Progress ── */
+    .progress-section { background: #161922; border: 1px solid #1f2433; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
+    .progress-header  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .progress-title   { font-size: 13px; font-weight: 600; color: #d1d5db; }
+    .track { background: #252a38; border-radius: 99px; height: 9px; overflow: hidden; margin-bottom: 8px; }
+    .fill  { height: 9px; border-radius: 99px; background: linear-gradient(90deg, #C9A84C, #E8C96B); transition: width .6s; }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; }
+
+    /* ── Chart box ── */
+    .chart-box { background: #161922; border: 1px solid #1f2433; border-radius: 6px; padding: 22px 20px; margin-bottom: 20px; }
+    .chart-box-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .chart-box-sub   { font-size: 12px; color: #6b7280; margin-bottom: 18px; }
+    .chart-wrap      { position: relative; }
+
+    /* ── Person leaderboard ── */
+    .leaderboard { display: flex; flex-direction: column; gap: 10px; }
+    .person-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px; background: #111318; border: 1px solid #1f2433; border-radius: 6px;
+    }
+    .rank      { font-size: 12px; font-weight: 700; color: #4b5563; min-width: 24px; text-align: center; }
+    .rank.top  { color: #C9A84C; }
+    .person-name { flex: 1; font-size: 14px; font-weight: 600; color: #e5e7eb; min-width: 80px; }
+    .person-bar-wrap { flex: 2; min-width: 60px; }
+    .person-track { background: #252a38; border-radius: 99px; height: 6px; overflow: hidden; }
+    .person-fill  { height: 6px; border-radius: 99px; background: var(--bar-color, #C9A84C); }
+    .person-amt   { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; min-width: 100px; text-align: right; }
+    .person-deals { font-size: 11px; color: #6b7280; white-space: nowrap; min-width: 54px; text-align: right; }
+    .team-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px;
+      background: rgba(201,168,76,.12); color: #C9A84C; border: 1px solid rgba(201,168,76,.25); white-space: nowrap;
+    }
+
+    /* ── Monthly top/bottom table ── */
+    .month-tbl { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .month-tbl thead th {
+      font-size: 11px; color: #6b7280; letter-spacing: .06em; text-transform: uppercase;
+      padding: 8px 12px; border-bottom: 1px solid #1f2433; text-align: left; font-weight: 600;
+    }
+    .month-tbl tbody tr { border-bottom: 1px solid #1a1e2a; }
+    .month-tbl tbody tr:last-child { border-bottom: none; }
+    .month-tbl tbody td { padding: 10px 12px; font-size: 13px; vertical-align: middle; }
+    .tbl-month { font-weight: 700; color: #9ca3af; min-width: 48px; }
+    .tbl-name  { font-weight: 600; }
+    .tbl-amt   { font-weight: 700; white-space: nowrap; }
+    .tbl-amt.green { color: #4ade80; }
+    .tbl-amt.red   { color: #f87171; }
+
+    /* ── Course table ── */
+    .course-tbl { width: 100%; border-collapse: collapse; }
+    .course-tbl thead th {
+      font-size: 11px; color: #6b7280; letter-spacing: .06em; text-transform: uppercase;
+      padding: 10px 12px; border-bottom: 1px solid #1f2433; text-align: left; font-weight: 600;
+    }
+    .course-tbl thead th:not(:first-child) { text-align: right; }
+    .course-tbl tbody tr { border-bottom: 1px solid #1a1e2a; transition: background .1s; }
+    .course-tbl tbody tr:last-child { border-bottom: none; }
+    .course-tbl tbody tr:hover { background: #1a1e2a; }
+    .course-tbl tbody td { padding: 10px 12px; font-size: 13px; color: #d1d5db; vertical-align: middle; }
+    .course-tbl tbody td:not(:first-child) { text-align: right; font-weight: 600; }
+    .course-tbl .c-rank { color: #6b7280; font-size: 11px; font-weight: 700; min-width: 28px; }
+    .course-tbl .c-name { color: #e5e7eb; }
+    .course-tbl .c-stu  { color: #60a5fa; }
+    .course-tbl .c-amt  { color: #C9A84C; }
+    .course-tbl .c-pct  { color: #6b7280; font-size: 11px; }
+
+    /* ── Year comparison cards ── */
+    .year-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .year-card {
+      flex: 1; min-width: 200px; background: #161922; border: 1px solid #1f2433;
+      border-radius: 6px; padding: 20px; border-top: 3px solid var(--yc, #C9A84C);
+    }
+    .year-card-title { font-size: 11px; color: #6b7280; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    .year-card-val   { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .year-card-sub   { font-size: 12px; color: #6b7280; }
+
+    /* Misc */
+    .loading-msg { text-align: center; padding: 60px; font-size: 14px; color: #6b7280; }
+    .error-msg   { text-align: center; padding: 60px; font-size: 14px; color: #f87171; }
+    .divider     { height: 1px; background: #1f2433; margin: 20px 0; }
+    .section-label { font-size: 11px; color: #C9A84C; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 12px; display: block; }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h2>Scale Team<br>Sales Dashboard</h2>
+    <p>Guardian Venture</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Sales</div>
+    <button class="nav-item active" onclick="switchPage('overview',this)">
+      <span class="icon">📊</span> Overview
+    </button>
+    <button class="nav-item" onclick="switchPage('setter',this)">
+      <span class="icon">🎯</span> Setter Sales
+    </button>
+    <button class="nav-item" onclick="switchPage('closer',this)">
+      <span class="icon">🏆</span> Closer Sales
+    </button>
+    <div class="nav-label">Analysis</div>
+    <button class="nav-item" onclick="switchPage('yearly',this)">
+      <span class="icon">📅</span> Yearly Sales
+    </button>
+    <button class="nav-item" onclick="switchPage('courses',this)">
+      <span class="icon">📚</span> Course Breakdown
+    </button>
+    <div class="nav-label">Listing</div>
+    <button class="nav-item" onclick="switchPage('listing',this)">
+      <span class="icon">💪</span> Life Momentum
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <p>All figures in MYR</p>
+    <p>Updated: <span id="sidebar-updated">—</span></p>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="page-title">Overview</div>
+      <div class="page-sub" id="page-sub">Jan – Jul 2026 · All figures in MYR</div>
+    </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadData()">
+      <span class="spin" id="spin-icon">↻</span> Refresh Data
+    </button>
+  </div>
+
+  <div class="page active" id="page-overview"><div class="loading-msg">正在读取 Google Sheets 数据…</div></div>
+  <div class="page" id="page-setter"><div class="loading-msg">正在读取数据…</div></div>
+  <div class="page" id="page-closer"><div class="loading-msg">正在读取数据…</div></div>
+  <div class="page" id="page-yearly"><div class="loading-msg">正在读取数据…</div></div>
+  <div class="page" id="page-courses"><div class="loading-msg">正在读取数据…</div></div>
+  <div class="page" id="page-listing"><div class="loading-msg">正在读取数据…</div></div>
+</main>
+
+<script>
+/* ── Config ── */
+const SHEET_ID         = '1zGOwh19tokN7qloOpR7uIkHT_e-LXUNx625JDXc3v3M';
+const LISTING_SHEET_ID = '1oL_vLc1WZwX8f4L8R7iK3di5tR6TU8I6r1OB61G78TM';
+const MONTHLY_TGT = 1_000_000;
+const YEARLY_TGT  = 12_000_000;
+const ALL_MONTHS  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const SHORT       = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TEAM_NAMES  = { A:'Infinity', B:'Guardian', C:'Abundance' };
+const YEARS       = ['2024','2025','2026'];
+const YEAR_COLORS = { '2024':'#a78bfa', '2025':'#60a5fa', '2026':'#C9A84C' };
+
+let charts = {};
+
+/* ── Helpers ── */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const c = text[i];
+    if (c === undefined) { row.push(field.trim()); if (row.some(v=>v)) rows.push(row); break; }
+    if (c === '"') {
+      if (inQ && text[i+1] === '"') { field += '"'; i++; } else inQ = !inQ;
+    } else if (c === ',' && !inQ) { row.push(field.trim()); field = '';
+    } else if ((c === '\n'||c === '\r') && !inQ) {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(field.trim()); field = '';
+      if (row.some(v=>v)) rows.push(row); row = [];
+    } else { field += c; }
+  }
+  return rows;
+}
+function parseAmt(s) { if (!s) return 0; const n=parseFloat(s.replace(/[^0-9.]/g,'')); return isNaN(n)?0:n; }
+function fmt(n)     { if(n>=1_000_000) return 'RM '+(n/1_000_000).toFixed(2)+'M'; if(n>=1_000) return 'RM '+Math.round(n/1_000)+'K'; return 'RM '+Math.round(n).toLocaleString(); }
+function fmtFull(n) { return 'RM '+Math.round(n).toLocaleString('en-MY'); }
+function pct(a,b)   { return b?Math.round(a/b*100):0; }
+function barColor(val) { const p=pct(val,MONTHLY_TGT); return p>=100?'#4ade80':p>=70?'#C9A84C':'#60a5fa'; }
+function teamKey(t) {
+  if (!t) return '?'; const s=t.trim().toUpperCase();
+  if (s==='A'||s.includes('INFINITY'))  return 'A';
+  if (s==='B'||s.includes('GUARDIAN'))  return 'B';
+  if (s==='C'||s.includes('ABUNDANCE')) return 'C';
+  return s.charAt(0)||'?';
+}
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ── Fetch one month ── */
+async function fetchMonth(monthName, year='2026') {
+  const sheetTab = `${monthName} ${year}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetTab)}`;
+  const r = await fetch(url, { cache:'no-store' });
+  if (!r.ok) return null;
+  const rows = parseCSV(await r.text());
+  if (!rows.length) return null;
+
+  const startIdx = (rows[0][0]||'').includes('@') || /^\d/.test(rows[0][0]||'') ? 0 : 1;
+  let total = 0, students = 0;
+  const setters={}, closers={}, courses={};
+
+  // Amount is always at col 11 (column L) across all years.
+  // Detect Setter/Closer positions from header row:
+  //   2025/2026 format: Team=col3, Setter=col4, Closer=col5, Class=col6
+  //   2024 format:      Setter=col3, Closer=col4, Class=col5 (no Team col)
+  const headerRow = startIdx > 0 ? rows[0] : [];
+  const h3 = (headerRow[3]||'').toLowerCase();
+  const h4 = (headerRow[4]||'').toLowerCase();
+  const hasTeamCol = h3.includes('team') || (h3==='' && h4.includes('setter')) || h4.includes('setter');
+  const setterCol = hasTeamCol ? 4 : 3;
+  const closerCol = hasTeamCol ? 5 : 4;
+  const courseCol = hasTeamCol ? 6 : 5;
+  const teamCol   = hasTeamCol ? 3 : -1;
+
+  for (let i = startIdx; i < rows.length; i++) {
+    const row = rows[i];
+    // Amount always col 11; blank = not a sale, skip
+    const amt = parseAmt(row[11]);
+    if (!amt) continue;
+
+    const team   = teamCol >= 0 ? teamKey(row[teamCol]) : '?';
+    const setter = (row[setterCol]||'').trim();
+    const closer = (row[closerCol]||'').trim();
+    const course = (row[courseCol]||'').trim();
+    const isSelfClose = setter && closer && setter.toLowerCase() === closer.toLowerCase();
+
+    total += amt; students++;
+
+    if (setter) {
+      if (!setters[setter]) setters[setter] = { total:0, deals:0, team };
+      setters[setter].total += amt; setters[setter].deals++;
+    }
+    if (closer && !isSelfClose) {
+      if (!closers[closer]) closers[closer] = { total:0, deals:0, team };
+      closers[closer].total += amt; closers[closer].deals++;
+    }
+    if (course) {
+      if (!courses[course]) courses[course] = { students:0, amount:0 };
+      courses[course].students++; courses[course].amount += amt;
+    }
+  }
+  return { total, students, setters, closers, courses };
+}
+
+/* ── Merge helpers ── */
+function mergePersonData(results, key) {
+  const merged = {};
+  results.forEach((r, i) => {
+    if (!r) return;
+    const ms = SHORT[i];
+    Object.entries(r[key]||{}).forEach(([name, d]) => {
+      if (!merged[name]) merged[name] = { total:0, deals:0, team:d.team, monthly:{} };
+      merged[name].total += d.total; merged[name].deals += d.deals;
+      merged[name].monthly[ms] = (merged[name].monthly[ms]||0) + d.total;
+    });
+  });
+  return merged;
+}
+
+function mergeCourses(results) {
+  const merged = {};
+  results.forEach(r => {
+    if (!r) return;
+    Object.entries(r.courses||{}).forEach(([name, d]) => {
+      if (!merged[name]) merged[name] = { students:0, amount:0 };
+      merged[name].students += d.students; merged[name].amount += d.amount;
+    });
+  });
+  return merged;
+}
+
+/* ── Page switch ── */
+function switchPage(name, btn) {
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('page-'+name).classList.add('active');
+  const titles = { overview:'Overview', setter:'Setter Sales', closer:'Closer Sales', yearly:'Yearly Sales', courses:'Course Breakdown', listing:'Life Momentum' };
+  document.getElementById('page-title').textContent = titles[name];
+}
+
+/* ── Chart factories ── */
+function killChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function makeBarChart(id, labels, actuals, addTarget=false, height=300) {
+  const ctx = document.getElementById(id); if (!ctx) return; killChart(id);
+  const datasets = [{
+    type:'bar', label:'Sales (MYR)', data:actuals,
+    backgroundColor: actuals.map(barColor), borderRadius:4, borderSkipped:false, order:2,
+  }];
+  if (addTarget) datasets.push({
+    type:'line', label:'RM 1M Target', data:actuals.map(()=>MONTHLY_TGT),
+    borderColor:'#f87171', borderWidth:2, borderDash:[8,5], pointRadius:0, fill:false, order:1,
+  });
+  ctx.parentElement.style.height = height+'px';
+  charts[id] = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#9ca3af', font:{size:12}, usePointStyle:true, pointStyleWidth:14 } },
+        tooltip:{
+          backgroundColor:'#1f2433', titleColor:'#f0f0f0', bodyColor:'#9ca3af',
+          borderColor:'#2d3547', borderWidth:1, padding:12,
+          callbacks:{ label: c => c.dataset.type==='line' ? `  Target: ${fmtFull(c.raw)}` : `  Sales: ${fmtFull(c.raw)}  (${pct(c.raw,MONTHLY_TGT)}%)` }
+        }
+      },
+      scales:{
+        x:{ grid:{color:'#1f2433'}, ticks:{color:'#9ca3af', font:{size:13,weight:'600'}} },
+        y:{ grid:{color:'#1f2433'}, beginAtZero:true, ticks:{ color:'#9ca3af', font:{size:11}, callback:v=>v>=1_000_000?(v/1_000_000).toFixed(1)+'M':v>=1_000?Math.round(v/1_000)+'K':v } }
+      }
+    }
+  });
+}
+
+function makeHorizChart(id, labels, data, color, height) {
+  const ctx = document.getElementById(id); if (!ctx) return; killChart(id);
+  ctx.parentElement.style.height = (height||Math.max(280, labels.length*44))+'px';
+  charts[id] = new Chart(ctx, {
+    type:'bar', data:{ labels, datasets:[{ label:'Sales (MYR)', data, backgroundColor:color, borderRadius:4 }] },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ backgroundColor:'#1f2433', titleColor:'#f0f0f0', bodyColor:'#9ca3af', borderColor:'#2d3547', borderWidth:1, padding:10, callbacks:{ label:c=>`  ${fmtFull(c.raw)}` } }
+      },
+      scales:{
+        x:{ grid:{color:'#1f2433'}, beginAtZero:true, ticks:{ color:'#9ca3af', font:{size:11}, callback:v=>v>=1_000_000?(v/1_000_000).toFixed(1)+'M':v>=1_000?Math.round(v/1_000)+'K':v } },
+        y:{ grid:{display:false}, ticks:{ color:'#e5e7eb', font:{size:12,weight:'600'} } }
+      }
+    }
+  });
+}
+
+function makeGroupedChart(id, labels, datasets, height) {
+  const ctx = document.getElementById(id); if (!ctx) return; killChart(id);
+  ctx.parentElement.style.height = (height||280)+'px';
+  const PALETTE = ['#C9A84C','#60a5fa','#4ade80','#f472b6','#a78bfa'];
+  charts[id] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets: datasets.map((d,i)=>({ label:d.label, data:d.data, backgroundColor:PALETTE[i%PALETTE.length]+'cc', borderColor:PALETTE[i%PALETTE.length], borderWidth:1, borderRadius:3 })) },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#9ca3af', font:{size:11}, usePointStyle:true, pointStyleWidth:12 } },
+        tooltip:{ backgroundColor:'#1f2433', titleColor:'#f0f0f0', bodyColor:'#9ca3af', borderColor:'#2d3547', borderWidth:1, padding:10, callbacks:{ label:c=>`  ${c.dataset.label}: ${fmtFull(c.raw)}` } }
+      },
+      scales:{
+        x:{ grid:{color:'#1f2433'}, ticks:{color:'#9ca3af', font:{size:12,weight:'600'}} },
+        y:{ grid:{color:'#1f2433'}, beginAtZero:true, ticks:{ color:'#9ca3af', font:{size:11}, callback:v=>v>=1_000_000?(v/1_000_000).toFixed(1)+'M':v>=1_000?Math.round(v/1_000)+'K':v } }
+      }
+    }
+  });
+}
+
+/* ── Leaderboard rows HTML ── */
+function leaderboardHTML(sorted, maxTotal, colorHex) {
+  return sorted.map(([name,d],i) => {
+    const bp = Math.round(d.total/maxTotal*100);
+    const team = TEAM_NAMES[d.team]||d.team||'—';
+    return `<div class="person-row">
+      <span class="rank ${i<3?'top':''}">#${i+1}</span>
+      <span class="person-name">${esc(name)}</span>
+      <span class="team-badge">${team}</span>
+      <div class="person-bar-wrap"><div class="person-track"><div class="person-fill" style="width:${bp}%;--bar-color:${colorHex};"></div></div></div>
+      <span class="person-amt">${fmt(d.total)}</span>
+      <span class="person-deals">${d.deals} deals</span>
+    </div>`;
+  }).join('');
+}
+
+/* ── Monthly top/bottom table ── */
+function monthlyTopBottomHTML(mergedData, activeMonths) {
+  const PALETTE=['#C9A84C','#60a5fa','#4ade80','#f472b6','#a78bfa','#fb923c','#34d399'];
+  const rows = activeMonths.map((m,mi) => {
+    const withData = Object.entries(mergedData).filter(([,d])=>(d.monthly[m]||0)>0).sort((a,b)=>b[1].monthly[m]-a[1].monthly[m]);
+    if (!withData.length) return `<tr><td class="tbl-month">${m}</td><td colspan="4" style="color:#4b5563;font-size:12px;">No data</td></tr>`;
+    const top=withData[0], bot=withData[withData.length-1];
+    return `<tr>
+      <td class="tbl-month">${m}</td>
+      <td><span class="tbl-name" style="color:${PALETTE[mi%PALETTE.length]}">${esc(top[0])}</span></td>
+      <td class="tbl-amt green">${fmt(top[1].monthly[m])}</td>
+      <td><span class="tbl-name" style="color:#f87171">${esc(bot[0])}</span></td>
+      <td class="tbl-amt red">${fmt(bot[1].monthly[m])}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="month-tbl"><thead><tr><th>Month</th><th>🏆 Top</th><th>Amount</th><th>⚠ Lowest</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ═══════════════════════════════════════
+   RENDER FUNCTIONS
+═══════════════════════════════════════ */
+
+/* ── Overview ── */
+function renderOverview(results) {
+  const valid = results.filter(r=>r&&r.total>0);
+  if (!valid.length) return;
+  const ytdTotal=valid.reduce((s,r)=>s+r.total,0), ytdStudents=valid.reduce((s,r)=>s+r.students,0);
+  const current=valid[valid.length-1], currentIdx=results.findLastIndex(r=>r&&r.total>0);
+  const currentName=SHORT[currentIdx], avg=ytdTotal/valid.length;
+  const ytdPct=pct(ytdTotal,YEARLY_TGT), curPct=pct(current.total,MONTHLY_TGT);
+  const remaining=YEARLY_TGT-ytdTotal;
+  const curClass=curPct>=100?'green':curPct>=70?'gold':'red';
+  const validLabels=SHORT.filter((_,i)=>results[i]&&results[i].total>0);
+  const validActuals=valid.map(r=>r.total);
+
+  document.getElementById('overview-content').innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="card-label">YTD Total (Jan–${currentName})</div><div class="card-value">${fmt(ytdTotal)}</div><div class="card-sub"><span class="gold">${ytdPct}%</span> of RM 12M yearly target</div></div>
+      <div class="card"><div class="card-label">Current Month (${currentName})</div><div class="card-value">${fmt(current.total)}</div><div class="card-sub"><span class="${curClass}">${curPct}%</span> of RM 1M monthly target</div></div>
+      <div class="card"><div class="card-label">Total Students Closed</div><div class="card-value">${ytdStudents.toLocaleString()}</div><div class="card-sub">YTD registrations</div></div>
+      <div class="card"><div class="card-label">Monthly Avg So Far</div><div class="card-value">${fmt(avg)}</div><div class="card-sub">vs <span class="gold">RM 1M</span> monthly target</div></div>
+    </div>
+    <div class="progress-section">
+      <div class="progress-header"><span class="progress-title">Yearly Progress — RM 12,000,000 Target</span><span class="gold">${ytdPct}%</span></div>
+      <div class="track"><div class="fill" style="width:${Math.min(ytdPct,100)}%"></div></div>
+      <div class="progress-meta"><span>Actual: ${fmtFull(ytdTotal)}</span><span>Remaining: ${fmtFull(remaining)}</span></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">Monthly Sales vs Target</div>
+      <div class="chart-box-sub">Each bar = actual sales · Dashed line = RM 1,000,000 monthly target</div>
+      <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+    </div>`;
+
+  setTimeout(() => makeBarChart('monthlyChart', validLabels, validActuals, true, 300), 0);
+}
+
+/* ── Setter / Closer ── */
+function renderPersonPage(contentId, ytdChartId, monthlyChartId, mergedData, activeMonths, color, title) {
+  const sorted=Object.entries(mergedData).sort((a,b)=>b[1].total-a[1].total);
+  const top20=sorted.slice(0,20), maxTot=top20[0]?.[1].total||1;
+  const top10=sorted.slice(0,10), top5=sorted.slice(0,5);
+  const chartH=Math.max(300,top10.length*44);
+
+  document.getElementById(contentId).innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="card-label">Total ${title}s</div><div class="card-value">${sorted.length}</div><div class="card-sub">Active people YTD</div></div>
+      <div class="card"><div class="card-label">#1 ${title}</div><div class="card-value" style="font-size:18px;">${sorted[0]?esc(sorted[0][0]):'—'}</div><div class="card-sub"><span class="gold">${sorted[0]?fmt(sorted[0][1].total):'—'}</span> · ${sorted[0]?sorted[0][1].deals+' deals':''}</div></div>
+      <div class="card"><div class="card-label">Total Sales Amount</div><div class="card-value">${fmt(sorted.reduce((s,[,d])=>s+d.total,0))}</div><div class="card-sub">Combined YTD</div></div>
+      <div class="card"><div class="card-label">Total Deals</div><div class="card-value">${sorted.reduce((s,[,d])=>s+d.deals,0).toLocaleString()}</div><div class="card-sub">YTD deals</div></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">Monthly Performance — Top 5 ${title}s</div>
+      <div class="chart-box-sub">Compare each person's sales month by month</div>
+      <div class="chart-wrap"><canvas id="${monthlyChartId}"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">Monthly Top &amp; Lowest ${title}</div>
+      <div class="chart-box-sub">Who led and who was lowest each month</div>
+      ${monthlyTopBottomHTML(mergedData, activeMonths)}
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">YTD Leaderboard — Top 10</div>
+      <div class="chart-box-sub">Ranked by total amount YTD</div>
+      <div class="chart-wrap"><canvas id="${ytdChartId}"></canvas></div>
+    </div>
+    <div class="divider"></div>
+    <div class="chart-box">
+      <div class="chart-box-title">Full Leaderboard</div>
+      <div class="chart-box-sub">All ${title}s ranked by YTD amount</div>
+      <div class="leaderboard" style="margin-top:4px;">${leaderboardHTML(top20, maxTot, color)}</div>
+    </div>`;
+
+  setTimeout(() => {
+    makeHorizChart(ytdChartId, top10.map(([n])=>n), top10.map(([,d])=>d.total), color, chartH);
+    makeGroupedChart(monthlyChartId, activeMonths, top5.map(([name,d])=>({ label:name, data:activeMonths.map(m=>d.monthly[m]||0) })), 280);
+  }, 0);
+}
+
+/* ── Yearly Sales ── */
+function renderYearly(yearData, activeMonthsByYear) {
+  const yearColors = YEAR_COLORS;
+  const years = Object.keys(yearData).sort();
+
+  // Year summary cards
+  const yearCards = years.map(y => {
+    const rows2    = yearData[y];
+    const total    = rows2.reduce((s,r)=>s+(r?.total||0), 0);
+    const students = rows2.reduce((s,r)=>s+(r?.students||0), 0);
+    const activeM  = rows2.filter(r=>r&&r.total>0);
+    const ytdPct   = pct(total, YEARLY_TGT);
+    const col      = yearColors[y]||'#C9A84C';
+    return `<div class="year-card" style="--yc:${col}">
+      <div class="year-card-title">${y} ${y==='2026'?'YTD':'Full Year'}</div>
+      <div class="year-card-val">${fmt(total)}</div>
+      <div class="year-card-sub"><span style="color:${col};font-weight:700;">${ytdPct}%</span> of RM 12M · ${activeM.length} months · ${students} students</div>
+    </div>`;
+  }).join('');
+
+  // Monthly comparison chart datasets
+  const allActiveMonths = SHORT.filter((_,i) => years.some(y => yearData[y][i] && yearData[y][i].total > 0));
+  const compDatasets = years.map(y => ({
+    label: y,
+    data: allActiveMonths.map(m => { const mi=SHORT.indexOf(m); return yearData[y][mi]?.total||0; })
+  }));
+
+  // Full-year monthly rows for each year
+  const monthTableRows = SHORT.map((ms, i) => {
+    const cells = years.map(y => {
+      const r = yearData[y][i];
+      if (!r || !r.total) return `<td style="text-align:right;color:#4b5563;font-size:12px;">—</td>`;
+      const p = pct(r.total, MONTHLY_TGT);
+      const col = p >= 100 ? '#4ade80' : p >= 70 ? '#C9A84C' : '#60a5fa';
+      return `<td style="text-align:right;font-weight:700;color:${col};">${fmt(r.total)}<br><span style="font-size:10px;color:#6b7280;">${p}% · ${r.students} stu</span></td>`;
+    }).join('');
+    return `<tr><td class="tbl-month">${ms}</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('yearly-content').innerHTML = `
+    <div class="year-row">${yearCards}</div>
+
+    ${years.length > 1 ? `
+    <div class="chart-box">
+      <div class="chart-box-title">Year-over-Year Monthly Comparison</div>
+      <div class="chart-box-sub">Compare each month's sales amount across years</div>
+      <div class="chart-wrap"><canvas id="yearCompChart"></canvas></div>
+    </div>` : ''}
+
+    <div class="chart-box">
+      <div class="chart-box-title">2026 Full Year Monthly View</div>
+      <div class="chart-box-sub">All 12 months — actual vs RM 1M target</div>
+      <div class="chart-wrap"><canvas id="yearFullChart"></canvas></div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-box-title">Monthly Breakdown by Year</div>
+      <div class="chart-box-sub">Sales amount, % of target, and students per month</div>
+      <table class="month-tbl">
+        <thead><tr><th>Month</th>${years.map(y=>`<th style="text-align:right;">${y}</th>`).join('')}</tr></thead>
+        <tbody>${monthTableRows}</tbody>
+      </table>
+    </div>`;
+
+  setTimeout(() => {
+    if (years.length > 1) {
+      makeGroupedChart('yearCompChart', allActiveMonths, compDatasets, 280);
+    }
+    // Full year 2026 bar chart (all 12 months)
+    const yr2026 = yearData['2026'] || [];
+    makeBarChart('yearFullChart', SHORT, SHORT.map((_,i)=>yr2026[i]?.total||0), true, 300);
+  }, 0);
+}
+
+/* ── Course Breakdown ── */
+function renderCourses(merged, totalAmount, totalStudents) {
+  const sorted = Object.entries(merged).sort((a,b)=>b[1].students-a[1].students);
+  const top10  = sorted.slice(0,10);
+
+  // Course table rows
+  const tableRows = sorted.map(([name,d],i) => {
+    const pctAmt = totalAmount ? Math.round(d.amount/totalAmount*100) : 0;
+    return `<tr>
+      <td class="c-rank">#${i+1}</td>
+      <td class="c-name">${esc(name)}</td>
+      <td class="c-stu">${d.students}</td>
+      <td class="c-amt">${fmt(d.amount)}</td>
+      <td class="c-pct">${pctAmt}%</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('courses-content').innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="card-label">Total Courses</div><div class="card-value">${sorted.length}</div><div class="card-sub">Unique courses sold YTD</div></div>
+      <div class="card"><div class="card-label">Most Popular</div><div class="card-value" style="font-size:14px;line-height:1.3;">${sorted[0]?esc(sorted[0][0]):'—'}</div><div class="card-sub"><span class="gold">${sorted[0]?.d?.students||sorted[0]?.[1]?.students||0} students</span></div></div>
+      <div class="card"><div class="card-label">Total Students</div><div class="card-value">${totalStudents.toLocaleString()}</div><div class="card-sub">YTD registrations</div></div>
+      <div class="card"><div class="card-label">Total Revenue</div><div class="card-value">${fmt(totalAmount)}</div><div class="card-sub">From all courses YTD</div></div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-box-title">Top 10 Courses — By Students</div>
+      <div class="chart-box-sub">Ranked by number of students closed YTD</div>
+      <div class="chart-wrap"><canvas id="courseChart"></canvas></div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-box-title">Full Course Breakdown</div>
+      <div class="chart-box-sub">All courses sorted by students · YTD Jan–${SHORT[SHORT.length - 1]}</div>
+      <table class="course-tbl">
+        <thead><tr><th>#</th><th>Course</th><th>Students</th><th>Revenue</th><th>% of Total</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
+
+  setTimeout(() => {
+    makeHorizChart('courseChart',
+      top10.map(([n])=>n.length>35?n.slice(0,33)+'…':n),
+      top10.map(([,d])=>d.students),
+      '#60a5fa',
+      Math.max(280, top10.length * 44)
+    );
+  }, 0);
+}
+
+/* ── Life Momentum ── */
+const LM_MONTHS = ['Feb 26','Mar 26','Apr 26','May 26','Jun 26','Jul 26'];
+
+function classifyStatus(raw) {
+  const s = (raw||'').toLowerCase();
+  // Priority: Registered > Drop > Follow Up > Appt Set > No Pick Up > Whatsapp
+  const isRegistered = s.includes('paid') || s.includes('renewed') || s.includes('同意自动扣账');
+  const isDrop       = !isRegistered && (s.includes('drop') || s.includes('拒绝自动扣账'));
+  const isFollowUp   = !isRegistered && !isDrop && s.includes('follow up');
+  const isAppt       = !isRegistered && !isDrop && !isFollowUp && s.includes('appointment set');
+  const isNPU        = !isRegistered && !isDrop && !isFollowUp && !isAppt && (s.includes('npu') || s.includes('no pickup'));
+  // sub-categories for registered
+  const isPaid       = isRegistered && s.includes('paid');
+  const isRenewed    = isRegistered && s.includes('renewed');
+  const isAutoDeduct = isRegistered && s.includes('同意自动扣账');
+  return { isRegistered, isDrop, isFollowUp, isAppt, isNPU, isPaid, isRenewed, isAutoDeduct };
+}
+
+async function fetchLMMonth(monthLabel) {
+  const tab = `LM Expired ${monthLabel}`;
+  const url = `https://docs.google.com/spreadsheets/d/${LISTING_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) return null;
+  const text = await r.text();
+  const json = JSON.parse(text.replace(/^.*?(\{.*\}).*$/s, '$1'));
+  const rows = json.table?.rows || [];
+  if (!rows.length) return null;
+
+  let expired=0, paid=0, renewed=0, autoDeduct=0, apptSet=0, followUp=0, drop=0, npu=0, whatsapp=0;
+  rows.forEach(row => {
+    const statusRaw = row.c?.[13]?.v ? String(row.c[13].v).trim() : '';
+    if (!row.c?.[1]?.v) return; // skip empty rows (no name)
+    expired++;
+    if (!statusRaw) { whatsapp++; return; }
+    const c = classifyStatus(statusRaw);
+    if (c.isRegistered) {
+      if (c.isPaid)       paid++;
+      if (c.isRenewed)    renewed++;
+      if (c.isAutoDeduct) autoDeduct++;
+    } else if (c.isDrop)     drop++;
+    else if (c.isFollowUp)   followUp++;
+    else if (c.isAppt)       apptSet++;
+    else if (c.isNPU)        npu++;
+    else                     whatsapp++;
+  });
+
+  const registered = paid + renewed + autoDeduct;
+  return { month: monthLabel, expired, paid, renewed, autoDeduct, registered, apptSet, followUp, drop, npu, whatsapp };
+}
+
+async function fetchListing() {
+  const results = await Promise.all(LM_MONTHS.map(m => fetchLMMonth(m).catch(()=>null)));
+  return results.filter(Boolean);
+}
+
+function renderListing(data) {
+  if (!data || !data.length) {
+    document.getElementById('listing-content').innerHTML = '<div class="error-msg">⚠ 找不到 Life Momentum 数据</div>';
+    return;
+  }
+
+  const T = data.reduce((a,d) => ({
+    expired:    a.expired    + d.expired,
+    paid:       a.paid       + d.paid,
+    renewed:    a.renewed    + d.renewed,
+    autoDeduct: a.autoDeduct + d.autoDeduct,
+    registered: a.registered + d.registered,
+    apptSet:    a.apptSet    + d.apptSet,
+    followUp:   a.followUp   + d.followUp,
+    drop:       a.drop       + d.drop,
+    npu:        a.npu        + d.npu,
+    whatsapp:   a.whatsapp   + d.whatsapp,
+  }), {expired:0,paid:0,renewed:0,autoDeduct:0,registered:0,apptSet:0,followUp:0,drop:0,npu:0,whatsapp:0});
+
+  const overallRate = T.expired ? Math.round(T.registered/T.expired*100) : 0;
+  const dropRate    = T.expired ? Math.round(T.drop/T.expired*100) : 0;
+
+  const cards = `
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);">
+      <div class="card">
+        <div class="card-label">Total Expired</div>
+        <div class="card-value">${T.expired}</div>
+        <div class="card-sub">Feb – Jul 2026 · ${data.length} months</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total Registered</div>
+        <div class="card-value">${T.registered}</div>
+        <div class="card-sub"><span class="green">${overallRate}%</span> conversion rate</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Drop</div>
+        <div class="card-value">${T.drop}</div>
+        <div class="card-sub"><span class="red">${dropRate}%</span> of expired leads</div>
+      </div>
+    </div>`;
+
+  const c = (val, color='', bold=false) =>
+    `<td style="text-align:center;${color?`color:${color};`:''}${bold?'font-weight:700;':''}">${val||'—'}</td>`;
+
+  const tableRows = data.map(d => {
+    const rate = d.expired ? Math.round(d.registered/d.expired*100) : 0;
+    const rateCol = rate >= 50 ? '#4ade80' : rate >= 25 ? '#C9A84C' : '#f87171';
+    return `<tr>
+      <td style="font-weight:600;color:#f0f0f0;white-space:nowrap;">${esc(d.month)}</td>
+      <td style="text-align:center;font-weight:600;">${d.expired}</td>
+      <td style="text-align:center;font-weight:700;color:#4ade80;">${d.registered}</td>
+      ${c(d.apptSet||0,  '#d8b4fe')}
+      ${c(d.followUp||0, '#60a5fa')}
+      ${c(d.drop||0,     '#f87171')}
+      ${c(d.npu||0,      '#6b7280')}
+      ${c(d.whatsapp||0, '#9ca3af')}
+      <td style="text-align:center;font-weight:700;color:${rateCol};">${rate}%</td>
+    </tr>`;
+  }).join('');
+
+  const tRate = T.expired ? Math.round(T.registered/T.expired*100) : 0;
+  const tRateCol = tRate >= 50 ? '#4ade80' : tRate >= 25 ? '#C9A84C' : '#f87171';
+  const totalRow = `<tr style="border-top:2px solid #374151;background:#1a1f2e;">
+    <td style="font-weight:700;color:#f0f0f0;">TOTAL</td>
+    <td style="text-align:center;font-weight:700;">${T.expired}</td>
+    <td style="text-align:center;font-weight:700;color:#4ade80;">${T.registered}</td>
+    ${c(T.apptSet,  '#d8b4fe', true)}
+    ${c(T.followUp, '#60a5fa', true)}
+    ${c(T.drop,     '#f87171', true)}
+    ${c(T.npu,      '#6b7280', true)}
+    ${c(T.whatsapp, '#9ca3af', true)}
+    <td style="text-align:center;font-weight:700;color:${tRateCol};">${tRate}%</td>
+  </tr>`;
+
+  document.getElementById('listing-content').innerHTML = `
+    ${cards}
+    <div class="chart-box">
+      <div class="chart-box-title">Monthly Close Flow</div>
+      <div class="chart-box-sub">Registered vs Expired per month · bar = registered, line = close rate %</div>
+      <div class="chart-wrap" style="height:260px;"><canvas id="lmFlowChart"></canvas></div>
+    </div>
+    <div class="chart-box" style="overflow-x:auto;">
+      <div class="chart-box-title">Life Momentum — Monthly Breakdown</div>
+      <div class="chart-box-sub">Reads live from LM Expired tabs · Feb–Jul 2026</div>
+      <table class="month-tbl" style="width:100%;">
+        <thead><tr>
+          <th>Month</th>
+          <th style="text-align:center;">Total Expired</th>
+          <th style="text-align:center;color:#4ade80;">Registered</th>
+          <th style="text-align:center;color:#d8b4fe;">Appt Set</th>
+          <th style="text-align:center;color:#60a5fa;">Follow Up</th>
+          <th style="text-align:center;color:#f87171;">Drop</th>
+          <th style="text-align:center;color:#6b7280;">NPU</th>
+          <th style="text-align:center;color:#9ca3af;">WA Only</th>
+          <th style="text-align:center;">Rate</th>
+        </tr></thead>
+        <tbody>${tableRows}${totalRow}</tbody>
+      </table>
+    </div>`;
+
+  setTimeout(() => {
+    const ctx = document.getElementById('lmFlowChart');
+    if (!ctx) return;
+    const months   = data.map(d => d.month);
+    const rates    = data.map(d => d.expired ? Math.round(d.registered/d.expired*100) : 0);
+    new Chart(ctx, {
+      data: {
+        labels: months,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Registered',
+            data: data.map(d => d.registered),
+            backgroundColor: '#4ade8088',
+            borderColor: '#4ade80',
+            borderWidth: 1,
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            type: 'bar',
+            label: 'Expired',
+            data: data.map(d => d.expired),
+            backgroundColor: '#37415150',
+            borderColor: '#6b7280',
+            borderWidth: 1,
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            type: 'line',
+            label: 'Close Rate %',
+            data: rates,
+            borderColor: '#C9A84C',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointBackgroundColor: '#C9A84C',
+            pointRadius: 5,
+            tension: 0.3,
+            yAxisID: 'y2',
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color:'#9ca3af', font:{size:11} } } },
+        scales: {
+          x:  { grid:{color:'#1f2433'}, ticks:{color:'#9ca3af'} },
+          y:  { grid:{color:'#1f2433'}, ticks:{color:'#9ca3af'}, title:{display:true,text:'People',color:'#6b7280'} },
+          y2: { position:'right', grid:{drawOnChartArea:false}, ticks:{color:'#C9A84C', callback: v => v+'%'}, min:0, max:100,
+                title:{display:true,text:'Close Rate',color:'#C9A84C'} }
+        }
+      }
+    });
+  }, 0);
+}
+
+/* ═══════════════════════════════════════
+   MAIN LOAD
+═══════════════════════════════════════ */
+async function loadData() {
+  const btn=document.getElementById('refresh-btn'), spin=document.getElementById('spin-icon');
+  btn.disabled=true; spin.classList.add('loading');
+  ['overview','setter','closer','yearly','courses','listing'].forEach(p => {
+    const el=document.getElementById(p+'-content')||document.getElementById('page-'+p);
+    if (el) el.innerHTML='<div class="loading-msg">正在读取数据…</div>';
+  });
+
+  // Add content divs inside pages if not there
+  ['overview','setter','closer','yearly','courses','listing'].forEach(p => {
+    const page=document.getElementById('page-'+p);
+    if (page && !document.getElementById(p+'-content')) {
+      page.innerHTML=`<div id="${p}-content"><div class="loading-msg">正在读取数据…</div></div>`;
+    }
+  });
+
+  try {
+    // Fetch 2026 data (primary)
+    const results2026 = await Promise.all(ALL_MONTHS.map(m => fetchMonth(m,'2026').catch(()=>null)));
+
+    // Fetch prior years silently (YEARS array drives which years are attempted)
+    const priorYears = YEARS.filter(y => y !== '2026');
+    const priorResults = await Promise.all(
+      priorYears.map(y => Promise.all(ALL_MONTHS.map(m => fetchMonth(m, y).catch(()=>null))))
+    );
+
+    const yearData = { '2026': results2026 };
+    priorYears.forEach((y, i) => {
+      const res = priorResults[i];
+      if (res.some(r => r && r.students > 0)) yearData[y] = res;
+    });
+
+    const hasData = results2026.some(r=>r&&r.total>0);
+    if (!hasData) throw new Error('找不到数据，请确认 Google Sheet 已设置为 "Anyone with the link can view"');
+
+    const activeMonths = SHORT.filter((_,i)=>results2026[i]&&results2026[i].total>0);
+    const setters      = mergePersonData(results2026,'setters');
+    const closers      = mergePersonData(results2026,'closers');
+    const courses      = mergeCourses(results2026);
+    const totalAmt     = results2026.reduce((s,r)=>s+(r?.total||0),0);
+    const totalStu     = results2026.reduce((s,r)=>s+(r?.students||0),0);
+
+    renderOverview(results2026);
+    renderPersonPage('setter-content','setterChart','setterMonthlyChart',setters,activeMonths,'#C9A84C','Setter');
+    renderPersonPage('closer-content','closerChart','closerMonthlyChart',closers,activeMonths,'#60a5fa','Closer');
+    renderYearly(yearData, {});
+    renderCourses(courses, totalAmt, totalStu);
+
+    // Listing tracker (independent sheet, fetch separately)
+    const listingData = await fetchListing().catch(()=>null);
+    renderListing(listingData);
+
+    const now=new Date().toLocaleString('en-MY',{dateStyle:'medium',timeStyle:'short'});
+    document.getElementById('sidebar-updated').textContent=now;
+    document.getElementById('page-sub').textContent=`Jan – ${activeMonths[activeMonths.length-1]} 2026 · All figures in MYR`;
+
+  } catch(e) {
+    document.getElementById('overview-content').innerHTML=`<div class="error-msg">⚠ ${esc(e.message)}</div>`;
+    console.error(e);
+  } finally {
+    btn.disabled=false; spin.classList.remove('loading');
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
