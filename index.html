@@ -257,6 +257,7 @@ const YEARLY_TGT  = 12_000_000;
 const ALL_MONTHS  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const SHORT       = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TEAM_NAMES  = { A:'Infinity', B:'Guardian', C:'Abundance' };
+const TEAM_LABEL_NAMES = new Set(['infinity','abundance','guardian']);
 const YEARS       = ['2024','2025','2026'];
 const YEAR_COLORS = { '2024':'#a78bfa', '2025':'#60a5fa', '2026':'#C9A84C' };
 
@@ -538,7 +539,7 @@ function renderOverview(results) {
 
 /* ── Setter / Closer ── */
 function renderPersonPage(contentId, ytdChartId, monthlyChartId, mergedData, activeMonths, color, title) {
-  const sorted=Object.entries(mergedData).sort((a,b)=>b[1].total-a[1].total);
+  const sorted=Object.entries(mergedData).filter(([n])=>!TEAM_LABEL_NAMES.has(n.toLowerCase())).sort((a,b)=>b[1].total-a[1].total);
   const top20=sorted.slice(0,20), maxTot=top20[0]?.[1].total||1;
   const top10=sorted.slice(0,10), top5=sorted.slice(0,5);
   const chartH=Math.max(300,top10.length*44);
@@ -717,7 +718,11 @@ function classifyStatus(raw) {
   const isPaid       = isRegistered && s.includes('paid');
   const isRenewed    = isRegistered && s.includes('renewed');
   const isAutoDeduct = isRegistered && s.includes('同意自动扣账');
-  return { isRegistered, isDrop, isFollowUp, isAppt, isNPU, isPaid, isRenewed, isAutoDeduct };
+  // sub-categories for drop
+  const isDropAppt   = isDrop && s.includes('appointment set');
+  const isDropAuto   = isDrop && s.includes('拒绝自动扣账');
+  const isDropPlain  = isDrop && !isDropAppt && !isDropAuto;
+  return { isRegistered, isDrop, isFollowUp, isAppt, isNPU, isPaid, isRenewed, isAutoDeduct, isDropAppt, isDropAuto, isDropPlain };
 }
 
 async function fetchLMMonth(monthLabel) {
@@ -730,7 +735,7 @@ async function fetchLMMonth(monthLabel) {
   const rows = json.table?.rows || [];
   if (!rows.length) return null;
 
-  let expired=0, paid=0, renewed=0, autoDeduct=0, apptSet=0, followUp=0, drop=0, npu=0, whatsapp=0;
+  let expired=0, paid=0, renewed=0, autoDeduct=0, apptSet=0, followUp=0, drop=0, dropPlain=0, dropAppt=0, dropAuto=0, npu=0, whatsapp=0;
   rows.forEach(row => {
     const statusRaw = row.c?.[13]?.v ? String(row.c[13].v).trim() : '';
     if (!row.c?.[1]?.v) return; // skip empty rows (no name)
@@ -741,15 +746,15 @@ async function fetchLMMonth(monthLabel) {
       if (c.isPaid)       paid++;
       if (c.isRenewed)    renewed++;
       if (c.isAutoDeduct) autoDeduct++;
-    } else if (c.isDrop)     drop++;
-    else if (c.isFollowUp)   followUp++;
-    else if (c.isAppt)       apptSet++;
-    else if (c.isNPU)        npu++;
-    else                     whatsapp++;
+    } else if (c.isDrop)   { drop++; if (c.isDropAppt) dropAppt++; else if (c.isDropAuto) dropAuto++; else dropPlain++; }
+    else if (c.isFollowUp) followUp++;
+    else if (c.isAppt)     apptSet++;
+    else if (c.isNPU)      npu++;
+    else                   whatsapp++;
   });
 
   const registered = paid + renewed + autoDeduct;
-  return { month: monthLabel, expired, paid, renewed, autoDeduct, registered, apptSet, followUp, drop, npu, whatsapp };
+  return { month: monthLabel, expired, paid, renewed, autoDeduct, registered, apptSet, followUp, drop, dropPlain, dropAppt, dropAuto, npu, whatsapp };
 }
 
 async function fetchListing() {
@@ -772,9 +777,12 @@ function renderListing(data) {
     apptSet:    a.apptSet    + d.apptSet,
     followUp:   a.followUp   + d.followUp,
     drop:       a.drop       + d.drop,
+    dropPlain:  a.dropPlain  + d.dropPlain,
+    dropAppt:   a.dropAppt   + d.dropAppt,
+    dropAuto:   a.dropAuto   + d.dropAuto,
     npu:        a.npu        + d.npu,
     whatsapp:   a.whatsapp   + d.whatsapp,
-  }), {expired:0,paid:0,renewed:0,autoDeduct:0,registered:0,apptSet:0,followUp:0,drop:0,npu:0,whatsapp:0});
+  }), {expired:0,paid:0,renewed:0,autoDeduct:0,registered:0,apptSet:0,followUp:0,drop:0,dropPlain:0,dropAppt:0,dropAuto:0,npu:0,whatsapp:0});
 
   const overallRate = T.expired ? Math.round(T.registered/T.expired*100) : 0;
   const dropRate    = T.expired ? Math.round(T.drop/T.expired*100) : 0;
@@ -831,8 +839,56 @@ function renderListing(data) {
     <td style="text-align:center;font-weight:700;color:${tRateCol};">${tRate}%</td>
   </tr>`;
 
+  const dropReasonHTML = T.drop > 0 ? `
+    <div class="chart-box">
+      <div class="chart-box-title">Drop Reason Breakdown</div>
+      <div class="chart-box-sub">Total ${T.drop} drops across Feb–Jul 2026</div>
+      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:12px;">
+        <div class="card">
+          <div class="card-label">Plain Drop</div>
+          <div class="card-value" style="font-size:28px;">${T.dropPlain}</div>
+          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropPlain/T.drop*100):0}%</span> of all drops</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Appt Set → Drop</div>
+          <div class="card-value" style="font-size:28px;">${T.dropAppt}</div>
+          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropAppt/T.drop*100):0}%</span> of all drops</div>
+        </div>
+        <div class="card">
+          <div class="card-label">拒绝自动扣账</div>
+          <div class="card-value" style="font-size:28px;">${T.dropAuto}</div>
+          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropAuto/T.drop*100):0}%</span> of all drops</div>
+        </div>
+      </div>
+      <table class="month-tbl" style="width:100%;margin-top:12px;">
+        <thead><tr>
+          <th>Month</th>
+          <th style="text-align:center;color:#f87171;">Total Drop</th>
+          <th style="text-align:center;color:#fca5a5;">Plain Drop</th>
+          <th style="text-align:center;color:#fb923c;">Appt Set → Drop</th>
+          <th style="text-align:center;color:#f87171;">拒绝自动扣账</th>
+        </tr></thead>
+        <tbody>${data.map(d=>`<tr>
+          <td style="font-weight:600;color:#f0f0f0;white-space:nowrap;">${esc(d.month)}</td>
+          <td style="text-align:center;font-weight:700;color:#f87171;">${d.drop||'—'}</td>
+          <td style="text-align:center;">${d.dropPlain||'—'}</td>
+          <td style="text-align:center;">${d.dropAppt||'—'}</td>
+          <td style="text-align:center;">${d.dropAuto||'—'}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid #374151;background:#1a1f2e;">
+          <td style="font-weight:700;color:#f0f0f0;">TOTAL</td>
+          <td style="text-align:center;font-weight:700;color:#f87171;">${T.drop}</td>
+          <td style="text-align:center;font-weight:700;">${T.dropPlain}</td>
+          <td style="text-align:center;font-weight:700;">${T.dropAppt}</td>
+          <td style="text-align:center;font-weight:700;">${T.dropAuto}</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>` : '';
+
   document.getElementById('listing-content').innerHTML = `
     ${cards}
+    ${dropReasonHTML}
     <div class="chart-box">
       <div class="chart-box-title">Monthly Close Flow</div>
       <div class="chart-box-sub">Registered vs Expired per month · bar = registered, line = close rate %</div>
