@@ -706,6 +706,20 @@ function renderCourses(merged, totalAmount, totalStudents) {
 /* ── Life Momentum ── */
 const LM_MONTHS = ['Feb 26','Mar 26','Apr 26','May 26','Jun 26','Jul 26'];
 
+function classifyDropReason(remark, status) {
+  const r = (remark||'').toLowerCase();
+  const s = (status||'').toLowerCase();
+  if (r.includes('inner')) return 'Inner';
+  if (r.includes('决定退出')) return '决定退出';
+  if (r.includes('不需要')) return '不需要';
+  if (r.includes('不更新') || r.includes('不续约') || r.includes('不renew') ||
+      r.includes('expired了就不要') || r.includes('暂时不renew') ||
+      r.includes('不要continue') || r.includes('不要进coaching')) return '不续约 / 不更新';
+  if (s.includes('appointment set') && s.includes('drop')) return 'Appt Set → Drop';
+  if (r.includes('拒绝')) return '拒绝自动扣账';
+  return '其他';
+}
+
 function classifyStatus(raw) {
   const s = (raw||'').toLowerCase();
   // Priority: Registered > Drop > Follow Up > Appt Set > No Pick Up > Whatsapp
@@ -736,9 +750,11 @@ async function fetchLMMonth(monthLabel) {
   if (!rows.length) return null;
 
   let expired=0, paid=0, renewed=0, autoDeduct=0, apptSet=0, followUp=0, drop=0, dropPlain=0, dropAppt=0, dropAuto=0, npu=0, whatsapp=0;
+  const dropReasons = {};
   rows.forEach(row => {
     const statusRaw = row.c?.[13]?.v ? String(row.c[13].v).trim() : '';
-    if (!row.c?.[1]?.v) return; // skip empty rows (no name)
+    const remarkRaw = row.c?.[14]?.v ? String(row.c[14].v).trim() : '';
+    if (!row.c?.[1]?.v) return;
     expired++;
     if (!statusRaw) { whatsapp++; return; }
     const c = classifyStatus(statusRaw);
@@ -746,15 +762,19 @@ async function fetchLMMonth(monthLabel) {
       if (c.isPaid)       paid++;
       if (c.isRenewed)    renewed++;
       if (c.isAutoDeduct) autoDeduct++;
-    } else if (c.isDrop)   { drop++; if (c.isDropAppt) dropAppt++; else if (c.isDropAuto) dropAuto++; else dropPlain++; }
-    else if (c.isFollowUp) followUp++;
-    else if (c.isAppt)     apptSet++;
-    else if (c.isNPU)      npu++;
-    else                   whatsapp++;
+    } else if (c.isDrop) {
+      drop++;
+      if (c.isDropAppt) dropAppt++; else if (c.isDropAuto) dropAuto++; else dropPlain++;
+      const reason = classifyDropReason(remarkRaw, statusRaw);
+      dropReasons[reason] = (dropReasons[reason]||0) + 1;
+    } else if (c.isFollowUp) followUp++;
+    else if (c.isAppt)       apptSet++;
+    else if (c.isNPU)        npu++;
+    else                     whatsapp++;
   });
 
   const registered = paid + renewed + autoDeduct;
-  return { month: monthLabel, expired, paid, renewed, autoDeduct, registered, apptSet, followUp, drop, dropPlain, dropAppt, dropAuto, npu, whatsapp };
+  return { month: monthLabel, expired, paid, renewed, autoDeduct, registered, apptSet, followUp, drop, dropPlain, dropAppt, dropAuto, npu, whatsapp, dropReasons };
 }
 
 async function fetchListing() {
@@ -768,21 +788,26 @@ function renderListing(data) {
     return;
   }
 
-  const T = data.reduce((a,d) => ({
-    expired:    a.expired    + d.expired,
-    paid:       a.paid       + d.paid,
-    renewed:    a.renewed    + d.renewed,
-    autoDeduct: a.autoDeduct + d.autoDeduct,
-    registered: a.registered + d.registered,
-    apptSet:    a.apptSet    + d.apptSet,
-    followUp:   a.followUp   + d.followUp,
-    drop:       a.drop       + d.drop,
-    dropPlain:  a.dropPlain  + d.dropPlain,
-    dropAppt:   a.dropAppt   + d.dropAppt,
-    dropAuto:   a.dropAuto   + d.dropAuto,
-    npu:        a.npu        + d.npu,
-    whatsapp:   a.whatsapp   + d.whatsapp,
-  }), {expired:0,paid:0,renewed:0,autoDeduct:0,registered:0,apptSet:0,followUp:0,drop:0,dropPlain:0,dropAppt:0,dropAuto:0,npu:0,whatsapp:0});
+  const T = data.reduce((a,d) => {
+    const dr = {...a.dropReasons};
+    Object.entries(d.dropReasons||{}).forEach(([k,v]) => { dr[k] = (dr[k]||0) + v; });
+    return {
+      expired:    a.expired    + d.expired,
+      paid:       a.paid       + d.paid,
+      renewed:    a.renewed    + d.renewed,
+      autoDeduct: a.autoDeduct + d.autoDeduct,
+      registered: a.registered + d.registered,
+      apptSet:    a.apptSet    + d.apptSet,
+      followUp:   a.followUp   + d.followUp,
+      drop:       a.drop       + d.drop,
+      dropPlain:  a.dropPlain  + d.dropPlain,
+      dropAppt:   a.dropAppt   + d.dropAppt,
+      dropAuto:   a.dropAuto   + d.dropAuto,
+      npu:        a.npu        + d.npu,
+      whatsapp:   a.whatsapp   + d.whatsapp,
+      dropReasons: dr,
+    };
+  }, {expired:0,paid:0,renewed:0,autoDeduct:0,registered:0,apptSet:0,followUp:0,drop:0,dropPlain:0,dropAppt:0,dropAuto:0,npu:0,whatsapp:0,dropReasons:{}});
 
   const overallRate = T.expired ? Math.round(T.registered/T.expired*100) : 0;
   const dropRate    = T.expired ? Math.round(T.drop/T.expired*100) : 0;
@@ -839,56 +864,23 @@ function renderListing(data) {
     <td style="text-align:center;font-weight:700;color:${tRateCol};">${tRate}%</td>
   </tr>`;
 
-  const dropReasonHTML = T.drop > 0 ? `
-    <div class="chart-box">
+  const dropReasonHTML = T.drop > 0 ? (() => {
+    const sorted = Object.entries(T.dropReasons).sort((a,b)=>b[1]-a[1]);
+    const rows = sorted.map(([reason, count]) =>
+      `<li style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1f2433;">
+        <span style="color:#d1d5db;">${esc(reason)}</span>
+        <span style="font-weight:700;color:#f87171;font-size:15px;min-width:32px;text-align:right;">${count}</span>
+      </li>`
+    ).join('');
+    return `<div class="chart-box">
       <div class="chart-box-title">Drop Reason Breakdown</div>
-      <div class="chart-box-sub">Total ${T.drop} drops across Feb–Jul 2026</div>
-      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:12px;">
-        <div class="card">
-          <div class="card-label">Plain Drop</div>
-          <div class="card-value" style="font-size:28px;">${T.dropPlain}</div>
-          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropPlain/T.drop*100):0}%</span> of all drops</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Appt Set → Drop</div>
-          <div class="card-value" style="font-size:28px;">${T.dropAppt}</div>
-          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropAppt/T.drop*100):0}%</span> of all drops</div>
-        </div>
-        <div class="card">
-          <div class="card-label">拒绝自动扣账</div>
-          <div class="card-value" style="font-size:28px;">${T.dropAuto}</div>
-          <div class="card-sub"><span class="red">${T.drop?Math.round(T.dropAuto/T.drop*100):0}%</span> of all drops</div>
-        </div>
-      </div>
-      <table class="month-tbl" style="width:100%;margin-top:12px;">
-        <thead><tr>
-          <th>Month</th>
-          <th style="text-align:center;color:#f87171;">Total Drop</th>
-          <th style="text-align:center;color:#fca5a5;">Plain Drop</th>
-          <th style="text-align:center;color:#fb923c;">Appt Set → Drop</th>
-          <th style="text-align:center;color:#f87171;">拒绝自动扣账</th>
-        </tr></thead>
-        <tbody>${data.map(d=>`<tr>
-          <td style="font-weight:600;color:#f0f0f0;white-space:nowrap;">${esc(d.month)}</td>
-          <td style="text-align:center;font-weight:700;color:#f87171;">${d.drop||'—'}</td>
-          <td style="text-align:center;">${d.dropPlain||'—'}</td>
-          <td style="text-align:center;">${d.dropAppt||'—'}</td>
-          <td style="text-align:center;">${d.dropAuto||'—'}</td>
-        </tr>`).join('')}
-        <tr style="border-top:2px solid #374151;background:#1a1f2e;">
-          <td style="font-weight:700;color:#f0f0f0;">TOTAL</td>
-          <td style="text-align:center;font-weight:700;color:#f87171;">${T.drop}</td>
-          <td style="text-align:center;font-weight:700;">${T.dropPlain}</td>
-          <td style="text-align:center;font-weight:700;">${T.dropAppt}</td>
-          <td style="text-align:center;font-weight:700;">${T.dropAuto}</td>
-        </tr>
-        </tbody>
-      </table>
-    </div>` : '';
+      <div class="chart-box-sub">Summarised from Remark column · total ${T.drop} drops</div>
+      <ul style="list-style:none;margin-top:8px;">${rows}</ul>
+    </div>`;
+  })() : '';
 
   document.getElementById('listing-content').innerHTML = `
     ${cards}
-    ${dropReasonHTML}
     <div class="chart-box">
       <div class="chart-box-title">Monthly Close Flow</div>
       <div class="chart-box-sub">Registered vs Expired per month · bar = registered, line = close rate %</div>
@@ -911,7 +903,8 @@ function renderListing(data) {
         </tr></thead>
         <tbody>${tableRows}${totalRow}</tbody>
       </table>
-    </div>`;
+    </div>
+    ${dropReasonHTML}`;
 
   setTimeout(() => {
     const ctx = document.getElementById('lmFlowChart');
