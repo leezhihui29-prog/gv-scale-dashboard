@@ -704,7 +704,7 @@ function renderCourses(merged, totalAmount, totalStudents) {
 }
 
 /* ── Life Momentum ── */
-const LM_MONTHS = ['Feb 26','Mar 26','Apr 26','May 26','Jun 26','Jul 26'];
+const LM_MONTHS = ['Jan 26','Feb 26','Mar 26','Apr 26','May 26','Jun 26','Jul 26'];
 
 function classifyDropReason(remark, status) {
   const r = (remark||'').toLowerCase();
@@ -817,7 +817,7 @@ function renderListing(data) {
       <div class="card">
         <div class="card-label">Total Expired</div>
         <div class="card-value">${T.expired}</div>
-        <div class="card-sub">Feb – Jul 2026 · ${data.length} months</div>
+        <div class="card-sub">${data[0]?.month} – ${data[data.length-1]?.month} 2026 · ${data.length} months</div>
       </div>
       <div class="card">
         <div class="card-label">Total Registered</div>
@@ -888,7 +888,7 @@ function renderListing(data) {
     </div>
     <div class="chart-box" style="overflow-x:auto;">
       <div class="chart-box-title">Life Momentum — Monthly Breakdown</div>
-      <div class="chart-box-sub">Reads live from LM Expired tabs · Feb–Jul 2026</div>
+      <div class="chart-box-sub">Reads live from LM Expired tabs · ${data[0]?.month} – ${data[data.length-1]?.month} 2026</div>
       <table class="month-tbl" style="width:100%;">
         <thead><tr>
           <th>Month</th>
